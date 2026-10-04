@@ -201,7 +201,7 @@ class ThumbnailWorker(QRunnable):
             # Check existence with both paths
             if not os.path.isfile(norm_path) and not os.path.isfile(self.file_path):
                 err = f"File not found: {self.file_path}"
-                logger.warning(err)
+                logger.debug(err)
                 if not self._cancelled:
                     self.signals.finished.emit(ThumbnailResult(self.file_path, error=err))
                 return

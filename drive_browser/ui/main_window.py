@@ -253,6 +253,7 @@ class MainWindow(QMainWindow):
 
         # ─── Main ToolBar ───
         toolbar = QToolBar("Main Toolbar", self)
+        toolbar.setObjectName("MainToolBar")
         toolbar.setIconSize(QSize(18, 18))
         self.addToolBar(toolbar)
 

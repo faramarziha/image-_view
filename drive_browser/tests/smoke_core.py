@@ -210,6 +210,35 @@ class TestServices(unittest.TestCase):
             with open(dest_file, 'rb') as f:
                 self.assertEqual(f.read(), b"Hello Chunked Copy " * 1000)
 
+    def test_flat_copy_different_size_not_silently_skipped(self):
+        """In flat copy, files with same name but different size must not be silently skipped."""
+        with tempfile.TemporaryDirectory() as src1, tempfile.TemporaryDirectory() as src2, tempfile.TemporaryDirectory() as dst:
+            file1 = os.path.join(src1, "report.pdf")
+            with open(file1, 'wb') as f:
+                f.write(b"Version 1" * 100)
+
+            file2 = os.path.join(src2, "report.pdf")
+            with open(file2, 'wb') as f:
+                f.write(b"Version 2 - Much Larger" * 500)
+
+            e1 = FileEntry(0, "report.pdf", intern_folder(src1), "pdf", os.path.getsize(file1) / 1024.0, "Other", None, 1)
+            e2 = FileEntry(1, "report.pdf", intern_folder(src2), "pdf", os.path.getsize(file2) / 1024.0, "Other", None, 2)
+
+            thread = CopyThread(
+                entries=[e1, e2],
+                dest_dir=dst,
+                flat_copy=True,
+                dedup_same_name_size=True
+            )
+            # Even if conflict action was SKIP, different size in flat copy must auto-rename and not be dropped!
+            thread.set_conflict_action(ConflictAction.SKIP)
+            thread.run()
+
+            copied_files = os.listdir(dst)
+            self.assertEqual(len(copied_files), 2, f"Both files must be kept, found: {copied_files}")
+            self.assertIn("report.pdf", copied_files)
+            self.assertIn("report (1).pdf", copied_files)
+
     def test_thumbnail_cache_and_long_paths(self):
         cache = ThumbnailCache(max_memory_mb=1)
         self.assertEqual(cache._max_memory, 1024 * 1024)
@@ -273,5 +302,96 @@ class TestRealSystemAnalyzerFile(unittest.TestCase):
         print(f"First entry: {first_entry.name} in {first_entry.folder} ({first_entry.size_display})")
 
 
+class TestOffscreenRendering(unittest.TestCase):
+    """
+    Offscreen UI rendering test using widget.grab().
+    Loads real or mock data into FileGridView and MainWindow, triggers full paint cycle
+    including ThumbnailDelegate.paint(), and asserts that no AttributeError or paint exception occurs.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+        from PySide6.QtWidgets import QApplication
+        cls.app = QApplication.instance() or QApplication(['-platform', 'offscreen'])
+
+    def test_grid_view_grab_renders_delegates_without_error(self):
+        from ui.file_grid_view import FileGridView
+        from ui.file_grid_model import FileTableModel
+        from services.thumbnail_service import ThumbnailService
+        from PySide6.QtCore import QItemSelectionModel
+
+        store = DataStore()
+        res = ParseResult()
+
+        real_file = None
+        for p in [os.path.join(PROJECT_ROOT, "..", "SystemAnalyzer.txt"), "f:\\image\\SystemAnalyzer.txt"]:
+            if os.path.isfile(p):
+                real_file = os.path.abspath(p)
+                break
+
+        if real_file:
+            parsed = parse_analyzer_file(real_file)
+            res.entries = parsed.entries[:50]
+        else:
+            for i in range(20):
+                res.entries.append(
+                    FileEntry(i, f"image_{i}.jpg", intern_folder("C:\\photos\\"), "jpg", 150.0 * (i + 1), "Pictures", None, i + 1)
+                )
+
+        store.load_result(res, "test.txt")
+        thumb_service = ThumbnailService(thumbnail_size=160)
+        model = FileTableModel(store)
+        model.set_indices(list(range(len(res.entries))))
+
+        grid = FileGridView(thumb_service, cell_size=160)
+        grid.set_model(model)
+        grid.resize(800, 600)
+        grid.show()
+
+        # Select first item to trigger selection state rendering (QStyle.StateFlag.State_Selected)
+        if grid._view.model().rowCount() > 0:
+            grid._view.selectionModel().select(
+                grid._view.model().index(0, 0),
+                QItemSelectionModel.SelectionFlag.Select
+            )
+
+        # grab() invokes full painting cycle (paintEvent + ThumbnailDelegate.paint)
+        try:
+            pixmap = grid.grab()
+        except Exception as e:
+            self.fail(f"widget.grab() raised an exception during delegate painting: {e}")
+
+        self.assertFalse(pixmap.isNull())
+        self.assertGreater(pixmap.width(), 0)
+        self.assertGreater(pixmap.height(), 0)
+        print(f"\n[Offscreen UI Check] Rendered {len(res.entries)} items in FileGridView successfully via widget.grab() (size: {pixmap.width()}x{pixmap.height()})")
+
+    def test_main_window_grab_and_state_save(self):
+        from ui.main_window import MainWindow
+        from core.settings import AppSettings
+        from PySide6.QtWidgets import QToolBar
+
+        settings = AppSettings()
+        window = MainWindow(settings=settings)
+        window.resize(1024, 768)
+        window.show()
+
+        # Verify toolbar objectName
+        toolbar = window.findChild(QToolBar, "MainToolBar")
+        self.assertIsNotNone(toolbar, "Toolbar must have objectName 'MainToolBar' for saveState() to work")
+
+        try:
+            pixmap = window.grab()
+        except Exception as e:
+            self.fail(f"MainWindow.grab() failed: {e}")
+
+        self.assertFalse(pixmap.isNull())
+        self.assertEqual(pixmap.width(), 1024)
+        self.assertEqual(pixmap.height(), 768)
+        print(f"[Offscreen UI Check] MainWindow rendered and grabbed cleanly (size: {pixmap.width()}x{pixmap.height()})")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

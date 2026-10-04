@@ -12,7 +12,7 @@ from PySide6.QtGui import (
     QPainter, QPixmap, QColor, QFont, QFontMetrics, QPen, QBrush,
     QLinearGradient, QPainterPath,
 )
-from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QWidget
+from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from services.thumbnail_service import ThumbnailService
 
@@ -46,8 +46,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.Antialiasing)
 
         rect = option.rect
-        is_selected = option.state & QStyleOptionViewItem.State_Selected
-        is_hovered = option.state & QStyleOptionViewItem.State_MouseOver
+        is_selected = option.state & QStyle.StateFlag.State_Selected
+        is_hovered = option.state & QStyle.StateFlag.State_MouseOver
 
         # Background
         if is_selected:

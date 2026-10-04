@@ -112,7 +112,7 @@ class CopyThread(QThread):
         self.original_drive = original_drive
         self.dedup_same_name_size = dedup_same_name_size
         self._cancelled = False
-        self._default_conflict_action = ConflictAction.SKIP
+        self._default_conflict_action = ConflictAction.RENAME
 
     def set_conflict_action(self, action: ConflictAction, for_all: bool = True):
         """Set the conflict resolution action."""
@@ -213,13 +213,23 @@ class CopyThread(QThread):
 
             # Handle existing destination conflicts
             if os.path.exists(dest):
+                dest_size = os.path.getsize(dest) if os.path.isfile(dest) else -1
                 action = self._default_conflict_action
-                if action == ConflictAction.SKIP:
-                    result.skipped += 1
-                    bytes_copied += file_size
-                    continue
-                elif action == ConflictAction.RENAME:
-                    dest = self._get_unique_name(dest)
+
+                # In flat copy: files with same name but different size must not be silently skipped
+                if self.flat_copy and dest_size != file_size:
+                    if action == ConflictAction.SKIP:
+                        # Auto-rename to prevent silent dropping of distinct content
+                        dest = self._get_unique_name(dest)
+                    elif action == ConflictAction.RENAME:
+                        dest = self._get_unique_name(dest)
+                else:
+                    if action == ConflictAction.SKIP:
+                        result.skipped += 1
+                        bytes_copied += file_size
+                        continue
+                    elif action == ConflictAction.RENAME:
+                        dest = self._get_unique_name(dest)
                 # OVERWRITE continues and replaces file
 
             # Copy file in 1 MB chunks with byte progress & mid-file cancellation cleanup

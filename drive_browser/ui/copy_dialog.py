@@ -79,12 +79,12 @@ class CopyDialog(QDialog):
         conflict_group = QGroupBox("Name Conflicts")
         conflict_layout = QHBoxLayout(conflict_group)
         self._skip_radio = QRadioButton("Skip")
-        self._skip_radio.setChecked(True)
         self._overwrite_radio = QRadioButton("Overwrite")
         self._rename_radio = QRadioButton("Auto-rename")
-        conflict_layout.addWidget(self._skip_radio)
-        conflict_layout.addWidget(self._overwrite_radio)
+        self._rename_radio.setChecked(True)
         conflict_layout.addWidget(self._rename_radio)
+        conflict_layout.addWidget(self._overwrite_radio)
+        conflict_layout.addWidget(self._skip_radio)
         layout.addWidget(conflict_group)
 
         # Progress
@@ -138,9 +138,9 @@ class CopyDialog(QDialog):
     def _get_conflict_action(self) -> ConflictAction:
         if self._overwrite_radio.isChecked():
             return ConflictAction.OVERWRITE
-        elif self._rename_radio.isChecked():
-            return ConflictAction.RENAME
-        return ConflictAction.SKIP
+        elif self._skip_radio.isChecked():
+            return ConflictAction.SKIP
+        return ConflictAction.RENAME
 
     def _start_copy(self):
         if not self._dest_path:
