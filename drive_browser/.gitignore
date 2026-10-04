@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+
+# Environments & IDE
+.vscode/
+.idea/
+.venv/
+env/
+venv/
+
+# App local runtime files
+.drive_browser/
+*.tmp
+*.log
+.pytest_cache/
