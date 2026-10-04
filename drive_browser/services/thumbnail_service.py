@@ -217,7 +217,7 @@ class ThumbnailWorker(QRunnable):
                     self.signals.finished.emit(ThumbnailResult(self.file_path, image=img))
                 else:
                     err = f"Video thumbnail generation failed for {self.file_path}"
-                    logger.warning(err)
+                    logger.debug(err)
                     self.signals.finished.emit(ThumbnailResult(self.file_path, error=err))
                 return
 
@@ -247,11 +247,11 @@ class ThumbnailWorker(QRunnable):
                 self.signals.finished.emit(ThumbnailResult(self.file_path, image=image))
             else:
                 err = f"Failed to decode image: {self.file_path}"
-                logger.warning(err)
+                logger.debug(err)
                 self.signals.finished.emit(ThumbnailResult(self.file_path, error=err))
 
         except Exception as exc:
-            logger.warning("Exception generating thumbnail for %s: %s", self.file_path, exc, exc_info=True)
+            logger.debug("Exception generating thumbnail for %s: %s", self.file_path, exc)
             if not self._cancelled:
                 self.signals.finished.emit(ThumbnailResult(self.file_path, error=str(exc)))
 

@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
         # ─── Preview Dock ───
         self._preview_dock = QDockWidget("Preview", self)
         self._preview_dock.setObjectName("PreviewDock")
-        self._preview_panel = PreviewPanel(self._data_store, self)
+        self._preview_panel = PreviewPanel(self._data_store, thumbnail_service=self._thumb_service, parent=self)
         self._preview_panel.navigate_requested.connect(self._on_preview_navigate)
         self._preview_panel.close_requested.connect(self._preview_dock.close)
         self._preview_dock.setWidget(self._preview_panel)

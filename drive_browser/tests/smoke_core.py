@@ -391,6 +391,73 @@ class TestOffscreenRendering(unittest.TestCase):
         self.assertEqual(pixmap.height(), 768)
         print(f"[Offscreen UI Check] MainWindow rendered and grabbed cleanly (size: {pixmap.width()}x{pixmap.height()})")
 
+    def test_preview_panel_video_playback_offscreen(self):
+        """
+        Offscreen test that creates a small 1-second video with ffmpeg,
+        invokes PreviewPanel.show_entry() on it, verifies no exceptions occur,
+        and cleanly clears/stops the video.
+        """
+        import subprocess
+        from ui.preview_panel import PreviewPanel
+
+        # Check if ffmpeg is available
+        try:
+            check = subprocess.run(["ffmpeg", "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if check.returncode != 0:
+                self.skipTest("ffmpeg not available")
+        except Exception:
+            self.skipTest("ffmpeg not found in PATH")
+
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as f:
+            tmp_video = f.name
+
+        try:
+            cmd = [
+                'ffmpeg', '-y', '-f', 'lavfi',
+                '-i', 'testsrc=duration=1:size=160x120:rate=10',
+                '-pix_fmt', 'yuv420p', tmp_video
+            ]
+            flags = 0x08000000 if sys.platform == 'win32' else 0
+            gen = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=flags)
+            if gen.returncode != 0 or not os.path.exists(tmp_video):
+                self.skipTest("Failed to generate test video with ffmpeg")
+
+            store = DataStore()
+            panel = PreviewPanel(store)
+            panel.resize(640, 480)
+            panel.show()
+
+            entry = FileEntry(
+                index=0,
+                name=os.path.basename(tmp_video),
+                folder=intern_folder(os.path.dirname(tmp_video)),
+                extension='mp4',
+                size_kb=os.path.getsize(tmp_video) / 1024.0,
+                category='Videos',
+                date=None,
+                line_number=1
+            )
+
+            try:
+                panel.show_entry(entry)
+                self.assertEqual(panel._stack.currentIndex(), PreviewPanel.PAGE_VIDEO)
+                # Grab to ensure full video widget rendering pass
+                pix = panel.grab()
+                self.assertFalse(pix.isNull())
+                panel.clear()
+                self.assertEqual(panel._stack.currentIndex(), PreviewPanel.PAGE_IMAGE)
+            except Exception as exc:
+                self.fail(f"PreviewPanel failed to show video: {exc}")
+
+            print(f"[Offscreen UI Check] Video preview loaded and rendered successfully in PreviewPanel")
+
+        finally:
+            if os.path.exists(tmp_video):
+                try:
+                    os.remove(tmp_video)
+                except OSError:
+                    pass
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
