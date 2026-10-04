@@ -458,6 +458,41 @@ class TestOffscreenRendering(unittest.TestCase):
                 except OSError:
                     pass
 
+    def test_preview_panel_slideshow_missing_video_advances(self):
+        """
+        Verify that when slideshow is active and a video file is missing or unplayable (fallback),
+        the slideshow timer restarts and emits navigate_requested(1) without getting permanently stuck.
+        """
+        from ui.preview_panel import PreviewPanel
+
+        store = DataStore()
+        panel = PreviewPanel(store)
+        panel._slide_interval.setValue(1)
+        panel._toggle_slideshow(True)
+
+        received_nav = []
+        panel.navigate_requested.connect(lambda delta: received_nav.append(delta))
+
+        missing_entry = FileEntry(
+            index=0,
+            name="non_existent_video.mp4",
+            folder=intern_folder("C:\\does_not_exist_folder_98765\\"),
+            extension="mp4",
+            size_kb=5000.0,
+            category="Videos",
+            date=None,
+            line_number=1
+        )
+
+        panel.show_entry(missing_entry)
+        self.assertEqual(panel._stack.currentIndex(), PreviewPanel.PAGE_FALLBACK)
+        self.assertTrue(panel._slideshow_timer.isActive(), "Slideshow timer must restart on video fallback")
+
+        panel._slideshow_timer.timeout.emit()
+        self.assertIn(1, received_nav, "navigate_requested(1) must be emitted on timeout")
+        panel.clear()
+        print(f"[Offscreen UI Check] Slideshow with missing video correctly restarted timer and emitted navigate_requested(1)")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

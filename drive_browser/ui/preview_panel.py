@@ -558,10 +558,18 @@ class PreviewPanel(QWidget):
 
         self._fallback_widget.show_fallback(file_path, thumb_pixmap)
 
+        # If slideshow is active, restart slideshow timer so it doesn't get stuck on missing/unplayable videos
+        if self._is_slideshow_active:
+            interval_ms = self._slide_interval.value() * 1000
+            self._slideshow_timer.start(interval_ms)
+
     def _on_video_error(self, error_msg: str):
         """Handle video playback error gracefully with fallback."""
         if self._current_file_path:
             self._show_video_fallback(self._current_file_path)
+        elif self._is_slideshow_active:
+            interval_ms = self._slide_interval.value() * 1000
+            self._slideshow_timer.start(interval_ms)
 
     def _on_video_playback_finished(self):
         """Handle video reaching EndOfMedia."""
@@ -623,8 +631,12 @@ class PreviewPanel(QWidget):
         if active:
             self._slide_btn.setText("⏸ Pause")
             if self._current_entry and self._current_entry.is_video():
-                # Let video play to end; don't start timer
-                self._slideshow_timer.stop()
+                if self._stack.currentIndex() == self.PAGE_FALLBACK or not os.path.isfile(self._current_file_path):
+                    interval_ms = self._slide_interval.value() * 1000
+                    self._slideshow_timer.start(interval_ms)
+                else:
+                    # Let video play to end; don't start timer
+                    self._slideshow_timer.stop()
             else:
                 interval_ms = self._slide_interval.value() * 1000
                 self._slideshow_timer.start(interval_ms)
